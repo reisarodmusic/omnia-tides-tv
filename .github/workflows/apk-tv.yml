@@ -1,0 +1,63 @@
+name: Compilar APK para TV
+
+# Se ejecuta en cada push a main/master y también a mano (pestaña Actions → «Run workflow»)
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # para publicar el APK en «Releases»
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      # Busca el proyecto Android aunque esté dentro de una subcarpeta del repositorio
+      - name: Localizar el proyecto
+        id: proyecto
+        run: |
+          S=$(find . -maxdepth 3 -name settings.gradle -not -path './.git/*' | head -n1)
+          if [ -z "$S" ]; then
+            echo "::error::No encuentro settings.gradle en el repositorio. Archivos que sí hay:"
+            find . -maxdepth 3 -not -path './.git/*' | head -60
+            exit 1
+          fi
+          echo "Proyecto encontrado en: $(dirname "$S")"
+          echo "dir=$(dirname "$S")" >> "$GITHUB_OUTPUT"
+
+      - name: Compilar
+        working-directory: ${{ steps.proyecto.outputs.dir }}
+        run: gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Dejar el APK con un nombre fijo
+        working-directory: ${{ steps.proyecto.outputs.dir }}
+        run: cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/omnia-tides-tv.apk"
+
+      # Descarga desde la pestaña Actions (hay que iniciar sesión en GitHub)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omnia-tides-tv-apk
+          path: omnia-tides-tv.apk
+
+      # Enlace fijo para bajarlo desde la TV (solo si el repositorio es público):
+      # https://github.com/USUARIO/REPOSITORIO/releases/download/tv-ultimo/omnia-tides-tv.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tv-ultimo
+          name: APK para TV (última versión)
+          prerelease: true
+          files: omnia-tides-tv.apk

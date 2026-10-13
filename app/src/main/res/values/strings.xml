@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OMNIA Tides</string>
+    <!-- Dirección que abre la app. Cámbiala aquí si algún día cambia el dominio. -->
+    <string name="app_url" translatable="false">https://omniatides.com/</string>
+    <string name="sin_exploradores">Esta TV no tiene un explorador de archivos para elegir vídeos.</string>
+</resources>

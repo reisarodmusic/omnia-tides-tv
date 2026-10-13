@@ -1,0 +1,56 @@
+OMNIA Tides para Android TV (Mi TV y similares)
+===============================================
+Es una app muy sencilla: una ventana a pantalla completa que abre https://omniatides.com/.
+La web se carga en vivo, así que cuando actualices el sitio la app enseña la versión nueva SIN reinstalar nada.
+Solo habría que recompilar el APK si cambias esta carpeta (icono, nombre, dirección…).
+
+CÓMO CONSEGUIR EL APK (no hace falta instalar nada en tu ordenador)
+-------------------------------------------------------------------
+1) En github.com crea un repositorio NUEVO (por ejemplo «omnia-tides-tv»).
+   - Público: la TV podrá descargar el APK con una dirección fija (paso 4B).
+   - Privado: también vale, pero tendrás que bajar el APK desde un navegador con tu sesión de GitHub (paso 4A).
+   Usa un repositorio aparte, no el de la web, para que Netlify no publique estos archivos.
+2) Sube a ese repositorio TODO el contenido de esta carpeta (incluida la carpeta oculta .github), con git:
+     git init && git add . && git commit -m "TV" && git branch -M main
+     git remote add origin https://github.com/TU_USUARIO/omnia-tides-tv.git && git push -u origin main
+3) En GitHub, pestaña «Actions»: verás «Compilar APK para TV» ejecutándose (tarda unos 3-5 minutos).
+   Si falla, abre la ejecución, copia el mensaje de error y pásamelo.
+4) Cuando termine:
+   A) En la ejecución, abajo, «Artifacts» → omnia-tides-tv-apk (se baja como .zip con el .apk dentro).
+   B) Repositorio público: en «Releases» → «APK para TV (última versión)», o directamente:
+        https://github.com/TU_USUARIO/omnia-tides-tv/releases/download/tv-ultimo/omnia-tides-tv.apk
+
+CÓMO INSTALARLO EN LA TV
+------------------------
+Opción 1 (la más cómoda, repositorio público): app «Downloader» (de AFTVnews, está en la tienda de apps de Android TV).
+   - Abre Downloader, escribe la dirección del paso 4B y descarga.
+   - La TV te pedirá permiso para «instalar apps desconocidas» para Downloader: concédelo, vuelve y pulsa Instalar.
+Opción 2: copia el .apk a un USB y ábrelo desde el explorador de archivos de la TV.
+Opción 3 (con el móvil/PC en la misma red): activa «Depuración ADB» en la TV (Ajustes → Preferencias del dispositivo →
+   Acerca de → pulsa 7 veces «Compilación» para activar opciones de desarrollador) y ejecuta:
+     adb connect IP_DE_LA_TV && adb install omnia-tides-tv.apk
+
+Después, «OMNIA Tides» aparece en el lanzador de la TV (si no la ves en la primera fila, mira en «Apps»).
+Los Mi TV con Google TV / Android TV lo aceptan. Algunos Mi TV de Xiaomi sin Google (PatchWall) también aceptan APK
+por USB, pero ahí no puedo asegurarte nada.
+
+MANDO A DISTANCIA
+-----------------
+Flechas y OK para moverse y pulsar; Atrás vuelve a la página anterior (y sale de la app al llegar al inicio);
+Menú recarga la página. Si no hay red, sale una pantalla de «Sin conexión» que reintenta sola cada 15 s.
+
+LIMITES (los conoces del navegador, aquí son iguales o algo mejores)
+--------------------------------------------------------------------
+- Los vídeos http:// funcionan aunque la página sea https:// (el navegador normal los bloquea).
+- «Abrir vídeos de este equipo» solo funciona si la TV tiene un explorador de archivos; si no, avisa.
+- Guardar archivos desde la web (guardar lista, guardar el QR como PNG) no está soportado en la app de TV.
+  Para pasar listas entre dispositivos usa «Ver QR» en la TV y «Leer QR» desde el móvil, o al revés.
+- Sin cámara: «Escanear QR con la cámara» no está disponible en la TV (sí «Leer QR» desde una imagen).
+- Los formatos que Android no reproduce (mkv con ciertos códecs, etc.) fallan igual que en cualquier navegador.
+
+CAMBIOS RÁPIDOS
+---------------
+- Dirección de la web: app/src/main/res/values/strings.xml  (app_url)
+- Nombre bajo el icono: mismo archivo (app_name)
+- Icono: app/src/main/res/mipmap-*/ic_launcher.png ; banner de la TV: app/src/main/res/drawable/banner.png (320x180)
+Cada vez que hagas git push se genera un APK nuevo.
