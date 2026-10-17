@@ -1,13 +1,12 @@
 name: Compilar APK para TV
 
-# Se ejecuta en cada push a main/master y también a mano (pestaña Actions → «Run workflow»)
 on:
   push:
     branches: [main, master]
   workflow_dispatch:
 
 permissions:
-  contents: write   # para publicar el APK en «Releases»
+  contents: write
 
 jobs:
   apk:
@@ -15,49 +14,91 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - id: java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # El SDK de Android ya viene en el runner; solo hay que aceptar sus licencias
+      # (la acción android-actions/setup-android falla al hacerlo, por eso no se usa)
+      - id: sdk
+        continue-on-error: true
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          echo "Licencias aceptadas:"; ls "$ANDROID_HOME/licenses"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - id: gradle
+        continue-on-error: true
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      # Busca el proyecto Android aunque esté dentro de una subcarpeta del repositorio
-      - name: Localizar el proyecto
-        id: proyecto
+      - id: proyecto
+        continue-on-error: true
         run: |
           S=$(find . -maxdepth 3 -name settings.gradle -not -path './.git/*' | head -n1)
           if [ -z "$S" ]; then
-            echo "::error::No encuentro settings.gradle en el repositorio. Archivos que sí hay:"
+            echo "No encuentro settings.gradle. Archivos del repositorio:"
             find . -maxdepth 3 -not -path './.git/*' | head -60
             exit 1
           fi
-          echo "Proyecto encontrado en: $(dirname "$S")"
           echo "dir=$(dirname "$S")" >> "$GITHUB_OUTPUT"
 
-      - name: Compilar
+      - id: compilar
+        if: steps.proyecto.outcome == 'success'
+        continue-on-error: true
         working-directory: ${{ steps.proyecto.outputs.dir }}
-        run: gradle --no-daemon --stacktrace assembleDebug
+        run: |
+          set -o pipefail
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          java -version 2>&1 | head -1
+          gradle --version 2>&1 | grep -E "^Gradle"
+          gradle --no-daemon --stacktrace assembleDebug 2>&1 | tee "$GITHUB_WORKSPACE/gradle.log"
 
-      - name: Dejar el APK con un nombre fijo
+      - id: apk
+        if: steps.compilar.outcome == 'success'
+        continue-on-error: true
         working-directory: ${{ steps.proyecto.outputs.dir }}
         run: cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/omnia-tides-tv.apk"
 
-      # Descarga desde la pestaña Actions (hay que iniciar sesión en GitHub)
-      - uses: actions/upload-artifact@v4
+      - if: steps.apk.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: omnia-tides-tv-apk
           path: omnia-tides-tv.apk
 
-      # Enlace fijo para bajarlo desde la TV (solo si el repositorio es público):
-      # https://github.com/USUARIO/REPOSITORIO/releases/download/tv-ultimo/omnia-tides-tv.apk
-      - uses: softprops/action-gh-release@v2
+      - if: steps.apk.outcome == 'success'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: tv-ultimo
           name: APK para TV (última versión)
           prerelease: true
           files: omnia-tides-tv.apk
+
+      # Informe visible en la pantalla de resumen de la ejecución
+      - name: Informe
+        if: always()
+        run: |
+          {
+            echo "## Resultado de cada paso"
+            echo "| Paso | Resultado |"
+            echo "|---|---|"
+            echo "| Java | ${{ steps.java.outcome }} |"
+            echo "| Licencias SDK Android | ${{ steps.sdk.outcome }} |"
+            echo "| Gradle | ${{ steps.gradle.outcome }} |"
+            echo "| Localizar proyecto | ${{ steps.proyecto.outcome }} |"
+            echo "| Compilar | ${{ steps.compilar.outcome }} |"
+            echo "| Copiar APK | ${{ steps.apk.outcome }} |"
+            if [ -f gradle.log ] && [ "${{ steps.compilar.outcome }}" != "success" ]; then
+              echo
+              echo "### Últimas líneas de la compilación"
+              echo '```'
+              tail -n 40 gradle.log
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          for r in "${{ steps.java.outcome }}" "${{ steps.gradle.outcome }}" "${{ steps.proyecto.outcome }}" "${{ steps.compilar.outcome }}" "${{ steps.apk.outcome }}"; do
+            if [ "$r" != "success" ]; then echo "::error::Algún paso ha fallado: mira el informe de esta ejecución"; exit 1; fi
+          done
